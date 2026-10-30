@@ -1,0 +1,99 @@
+!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Monster RPG - Tour par Tour</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#0f1419;color:#eee;font-family:'Press Start 2P',monospace;display:flex;justify-content:center;align-items:center;min-height:100vh;padding:10px;background:radial-gradient(ellipse at top,#1a2a3a,#0a0f14)}
+#game{width:100%;max-width:480px;background:#16202c;border:4px solid #4a5a6a;box-shadow:0 0 0 4px #0a0f14,0 0 20px rgba(0,0,0,0.8)}
+.header{padding:12px;background:#0e1822;display:flex;justify-content:space-between;font-size:9px;border-bottom:3px solid #4a5a6a}
+.scene{height:280px;position:relative;background:linear-gradient(to bottom,#2a4a3a 0%,#1a2a1a 60%,#3a2a1a 60%,#2a1a0a 100%);overflow:hidden;display:flex;align-items:flex-end;justify-content:space-between;padding:20px}
+.enemy{width:140px;height:160px;background: radial-gradient(ellipse at center,#d88a6a 0%,#8a4a3a 100%);border-radius:40% 60% 50% 50% / 30% 40% 70% 60%;position:relative;transition:all 0.2s;box-shadow:inset -10px -10px 0 rgba(0,0,0,0.3)}
+.enemy.hit{transform:translateX(10px) scale(0.95);filter:brightness(1.5) hue-rotate(-20deg)}
+.enemy::before{content:'🐔';font-size:80px;position:absolute;top:20px;left:20px}
+.player{width:80px;height:90px;background:linear-gradient(#5a8acc,#3a5a8a);border-radius:20% 20% 5% 5%;position:relative;transition:all 0.2s}
+.player.hit{transform:translateX(-10px);filter:brightness(1.5)}
+.player::before{content:'🗡️';font-size:40px;position:absolute;top:10px;left:15px}
+.bars{padding:10px;background:#0e1822;display:flex;flex-direction:column;gap:8px}
+.bar-row{display:flex;align-items:center;gap:8px;font-size:8px}
+.bar{flex:1;height:14px;background:#111;border:2px solid #555;position:relative;overflow:hidden}
+.fill{height:100%;transition:width 0.4s}
+.hp-enemy .fill{background:linear-gradient(#ff5555,#cc2222)}
+.hp-player .fill{background:linear-gradient(#55ff55,#22aa22)}
+.mp-player .fill{background:linear-gradient(#5599ff,#2255cc)}
+.log{height:90px;background:#000a;color:#8f8;padding:8px;font-size:8px;line-height:14px;overflow-y:auto;border-top:3px solid #4a5a6a;border-bottom:3px solid #4a5a6a}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px;background:#16202c}
+button{font-family:'Press Start 2P',monospace;font-size:9px;padding:12px 6px;background:#2a3a4a;color:#fff;border:3px solid #5a6a7a;cursor:pointer;transition:all 0.1s;text-transform:uppercase}
+button:hover{background:#3a5a7a;transform:translateY(-1px)}
+button:disabled{opacity:0.4;cursor:not-allowed}
+button.attack{background:#4a2a2a;border-color:#8a4a4a}
+button.magic{background:#2a2a5a;border-color:#4a4a8a}
+button.heal{background:#2a4a2a;border-color:#4a8a4a}
+button.item{background:#4a4a2a;border-color:#8a8a4a}
+.dmg{position:absolute;font-size:14px;font-weight:bold;color:#ff3333;text-shadow:2px 2px 0 #000;animation:float 0.8s forwards;pointer-events:none}
+@keyframes float{0%{transform:translateY(0) scale(1)}100%{transform:translateY(-60px) scale(1.3);opacity:0}}
+.victory{position:absolute;inset:0;background:rgba(0,0,0,0.85);display:none;flex-direction:column;justify-content:center;align-items:center;gap:20px;z-index:10}
+.victory.show{display:flex}
+.victory h2{font-size:14px;color:#ffdd55;text-align:center;line-height:20px}
+</style>
+</head>
+<body>
+<div id="game">
+<div class="header"><span>MONSTER RPG</span><span id="turn">TOUR 1</span></div>
+<div class="scene" id="scene">
+<div class="player" id="player"></div>
+<div class="enemy" id="enemy"></div>
+<div class="victory" id="victory"><h2 id="vicText">VICTOIRE!</h2><button onclick="nextBattle()">SUIVANT ▶</button></div>
+</div>
+<div class="bars">
+<div class="bar-row hp-enemy"><span style="width:60px">ENNEMI</span><div class="bar"><div class="fill" id="eHp" style="width:100%"></div></div><span id="eHpTxt">100%</span></div>
+<div class="bar-row hp-player"><span style="width:60px">TOI</span><div class="bar"><div class="fill" id="pHp" style="width:100%"></div></div><span id="pHpTxt">100%</span></div>
+<div class="bar-row mp-player"><span style="width:60px">MANA</span><div class="bar"><div class="fill" id="pMp" style="width:100%"></div></div><span id="pMpTxt">50/50</span></div>
+</div>
+<div class="log" id="log">Bienvenue chasseur ! Un Yian Kut-Ku sauvage apparaît !<br>À toi de jouer !</div>
+<div class="actions">
+<button class="attack" onclick="doAction('attack')">⚔️ Attaquer</button>
+<button class="magic" onclick="doAction('magic')">🔥 Boule Feu (10 MP)</button>
+<button class="heal" onclick="doAction('heal')">💚 Soin (15 MP)</button>
+<button class="item" onclick="doAction('item')">🧪 Potion x<span id="potCount">3</span></button>
+</div>
+</div>
+<script>
+const enemies=[{name:'Yian Kut-Ku',hp:120,max:120,atk:18,def:5},{name:'Yian Kut-Ku Alpha',hp:180,max:180,atk:25,def:8},{name:'Rathalos',hp:250,max:250,atk:32,def:12}];
+let cur=0,e={...enemies[0]},p={hp:150,maxHp:150,mp:50,maxMp:50,atk:28,def:8,pots:3},turn=1,busy=false;
+function log(t){const l=document.getElementById('log');l.innerHTML+='<br>> '+t;l.scrollTop=l.scrollHeight;}
+function updateBars(){
+document.getElementById('eHp').style.width=Math.max(0,e.hp/e.max*100)+'%';
+document.getElementById('eHpTxt').innerText=Math.max(0,e.hp)+'/'+e.max;
+document.getElementById('pHp').style.width=p.hp/p.maxHp*100+'%';
+document.getElementById('pHpTxt').innerText=p.hp+'/'+p.maxHp;
+document.getElementById('pMp').style.width=p.mp/p.maxMp*100+'%';
+document.getElementById('pMpTxt').innerText=p.mp+'/'+p.maxMp;
+document.getElementById('potCount').innerText=p.pots;
+document.getElementById('turn').innerText='TOUR '+turn;
+}
+function dmgPopup(el,val,color='#ff3333'){
+const s=document.getElementById('scene');const d=document.createElement('div');d.className='dmg';d.style.color=color;d.innerText=val>0?'-'+val:'+'+Math.abs(val);
+const r=el.getBoundingClientRect();const sr=s.getBoundingClientRect();
+d.style.left=(r.left-sr.left+r.width/2)+'px';d.style.top=(r.top-sr.top)+'px';
+s.appendChild(d);setTimeout(()=>d.remove(),800);
+}
+function doAction(type){
+if(busy) return; busy=true; let dmg=0;
+if(type==='attack'){dmg=Math.max(1,p.atk+Math.floor(Math.random()*8)-e.def);e.hp-=dmg;log(`Tu frappes ! -${dmg} PV`);hit('enemy',dmg);}
+else if(type==='magic'){if(p.mp<10){log('Pas assez de mana !');busy=false;return;}p.mp-=10;dmg=p.atk+15+Math.floor(Math.random()*12);e.hp-=dmg;log(`Boule de feu ! 🔥 -${dmg} PV`);hit('enemy',dmg,'#ff8844');}
+else if(type==='heal'){if(p.mp<15){log('Pas assez de mana !');busy=false;return;}p.mp-=15;let heal=40+Math.floor(Math.random()*15);p.hp=Math.min(p.maxHp,p.hp+heal);log(`Soin ! +${heal} PV`);dmgPopup(document.getElementById('player'),-heal,'#44ff44');updateBars();setTimeout(enemyTurn,800);return;}
+else if(type==='item'){if(p.pots<=0){log('Plus de potions !');busy=false;return;}p.pots--;let heal=60;p.hp=Math.min(p.maxHp,p.hp+heal);log(`Potion ! +${heal} PV`);dmgPopup(document.getElementById('player'),-heal,'#44ff44');updateBars();setTimeout(enemyTurn,800);return;}
+updateBars();if(e.hp<=0){victory();return;}setTimeout(enemyTurn,900);
+}
+function hit(who,dmg,col){const el=document.getElementById(who);el.classList.add('hit');dmgPopup(el,dmg,col||'#ff3333');setTimeout(()=>el.classList.remove('hit'),200);}
+function enemyTurn(){turn++;let dmg=Math.max(1,e.atk+Math.floor(Math.random()*10)-p.def);p.hp-=dmg;log(`${e.name} attaque ! -${dmg} PV`);hit('player',dmg);updateBars();if(p.hp<=0){document.getElementById('vicText').innerText='DÉFAITE...\nRecommencer ?';document.getElementById('victory').classList.add('show');}busy=false;}
+function victory(){document.getElementById('vicText').innerText=`VICTOIRE !\n${e.name} vaincu !`;document.getElementById('victory').classList.add('show');busy=false;}
+function nextBattle(){document.getElementById('victory').classList.remove('show');cur++;if(cur>=enemies.length)cur=0;e={...enemies[cur]};turn=1;p.mp=Math.min(p.maxMp,p.mp+20);log(`---\nUn ${e.name} apparaît ! HP:${e.max}`);updateBars();}
+updateBars();
+</script>
+</body>
+</html>
